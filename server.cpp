@@ -1,20 +1,24 @@
 #include <iostream>
 #include <string>
+#include <vector>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <cstring>
 
 class Engine {
 private:
-  int inFD;
-  int outFD;
+  int fromFD;
+  int toFD;
   std::string lastMsg;
 public:
   std::string moves;
-  Engine(std::string engName, int _inFD, int _outFD);
-  void send(std::string str);
+  Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD);
+  void sendTo(std::string str);
+  std::vector<std::string> recvFrom();
+  void process(std::string cmd);
 };
 
-Engine::Engine(std::string engName, int _inFD, int _outFD) : inFD(_inFD), outFD(_outFD) {
+Engine::Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD) : fromFD(_fromFD), toFD(_toFD) {
   pid_t child = fork();
   if(child == -1) {
     std::cerr << "fork() failed!?\n";
@@ -32,10 +36,27 @@ Engine::Engine(std::string engName, int _inFD, int _outFD) : inFD(_inFD), outFD(
   } // else do nothing, we're in the parent and are done here
 }
 
-void Engine::send(std::string str) {
+void Engine::sendTo(std::string str) {
   lastMsg = str;
-  inFD >> str;
+  write(toFD, str.c_str(), str.size() + 1);
 };
+
+void Engine::process(std::string cmd) {
+}
+
+std::vector<std::string> Engine::recvFrom() {
+  std::vector<std::string> ret;
+  char buf[1024];
+  read(fromFD, buf, 1023);
+  if(buf[1023] != EOF)
+    buf[1023] = '\0'; // just to be sure
+  char* end = buf;
+  for(char* start = end; *start != EOF && (start - buf < 1023); start = end) {
+    for(end = start; *end != '\0' && *end != EOF; end++); // find eof or end
+    ret.push_back(std::string(start, end));
+  }
+  return ret;
+}
 
 int main(int argc, char** argv) {
   struct stat buf;
@@ -46,12 +67,17 @@ int main(int argc, char** argv) {
   int fds[8]; // eng1 input in, eng1 input out, eng1 output in, eng2 output out, and so on for eng2
   for(int i = 0; i < 4; i++)
     pipe2(fds + i * 2, O_NONBLOCK);
-  Engine e1(argv[1], fds[0], fds[3]);
-  Engine e2(argv[2], fds[4], fds[7]);
-  int toE1 = fds[1];
-  int fromE1 = fds[2];
-  int toE2 = fds[5];
-  int fromE2 = fds[6];
+  Engine e1(argv[1], fds[2], fds[1], fds[0], fds[3]);
+  Engine e2(argv[2], fds[6], fds[5], fds[4], fds[7]);
+  e1.sendTo("UCI");
+  e2.sendTo("UCI");
   while(true) {
+    std::vector<std::string> cmds = e1.recvFrom();
+    for(std::string& cmd : cmds)
+      e1.process(cmd);
+    cmds.clear();
+    cmds = e2.recvFrom();
+    for(std::string& cmd : cmds)
+      e2.process(cmd);
   }
 }

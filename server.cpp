@@ -21,8 +21,10 @@ private:
 public:
   std::string moves;
   Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD);
-  void send(std::string str);
   std::string getNextMessage(std::string engineOutput);
+  void sendTo(std::string str);
+  std::vector<std::string> recvFrom();
+  void process(std::string cmd);
 };
 
 std::string Engine::verifyOutput(std::string expected, std::string got, std::string next) {
@@ -36,9 +38,6 @@ std::string Engine::verifyOutput(std::string expected, std::string got, std::str
 }
 
 Engine::Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD) : fromFD(_fromFD), toFD(_toFD) {
-  void sendTo(std::string str);
-  std::vector<std::string> recvFrom();
-  void process(std::string cmd);
   pid_t child = fork();
   if(child == -1) {
     std::cerr << "fork() failed!?\n";
@@ -82,6 +81,7 @@ std::string Engine::getNextMessage(std::string engineOutput) {
     else if (lastMsg == ISREADY) {
       return verifyOutput(READYOK, engineOutput, NULL);
     }
+    else return "err";
   }
 }
 

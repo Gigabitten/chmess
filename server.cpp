@@ -4,6 +4,9 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include <cstring>
+#include <fcntl.h>
+#include <linux/limits.h>
+#include <sys/mman.h>
 
 class Engine {
 private:
@@ -50,14 +53,22 @@ Engine::Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD)
     dup(inFD);
     close(STDOUT_FILENO);
     dup(outFD);
-    if(execlp(engName.c_str(), engName.c_str(), "", NULL) == -1) {
+    char cstrcwd[PATH_MAX+1];
+    if(!getcwd(cstrcwd, sizeof(cstrcwd)))
+      perror("getcwd() error");
+    std::string cwd(cstrcwd);
+    std::string exe = cwd + std::string("/") + engName;
+    if(execlp(exe.c_str(), exe.c_str(), "", (char*)NULL) == -1) {
       std::cerr << "failed trying to launch " << engName << "\n";
+      perror("  launch error");
+      std::cout << "OHNO\n";
       exit(-1);
     }
   } // else do nothing, we're in the parent and are done here
 }
 
 void Engine::sendTo(std::string str) {
+  std::cout << "server sending: " << str;
   lastMsg = str;
   write(toFD, str.c_str(), str.size() + 1);
 };
@@ -86,23 +97,41 @@ std::string Engine::getNextMessage(std::string engineOutput) {
 }
 
 void Engine::process(std::string cmd) {
+  if(cmd == "OHNO") {
+    std::cerr << "Engine failed to launch! Exiting\n";
+    exit(-1);
+  }
 }
 
 std::vector<std::string> Engine::recvFrom() {
   std::vector<std::string> ret;
   char buf[1024];
-  read(fromFD, buf, 1023);
+  int n = read(fromFD, buf, 1023);
+  if(n == -1) // got nothing
+    return ret;
   if(buf[1023] != EOF)
     buf[1023] = '\0'; // just to be sure
   char* end = buf;
   for(char* start = end; *start != EOF && (start - buf < 1023); start = end) {
-    for(end = start; *end != '\0' && *end != EOF; end++); // find eof or end
+    for(end = start + 1; *end != '\0' && *end != EOF && *end != '\n'; end++); // find eof or end or newline or CR
+    if(buf[0] == EOF)
+      continue;
     ret.push_back(std::string(start, end));
   }
+  for(const std::string& str : ret)
+    std::cout << "server got: " << str << "\n";
   return ret;
 }
 
 int main(int argc, char** argv) {
+  pthread_mutexattr_t attr;
+  pthread_mutex_t *mut;
+  pthread_mutexattr_init(&attr); 
+  pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
+  mut = (pthread_mutex_t*)mmap(NULL, sizeof(*mut), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
+  pthread_mutex_init(mut, &attr);
+  pthread_mutexattr_destroy(&attr);
+
   struct stat buf;
   if(argc != 3 || stat(argv[1], &buf) != 0 || stat(argv[2], &buf) != 0) {
     std::cerr << "usage: ./server engine1 engine2\n";
@@ -113,8 +142,8 @@ int main(int argc, char** argv) {
     pipe2(fds + i * 2, O_NONBLOCK);
   Engine e1(argv[1], fds[2], fds[1], fds[0], fds[3]);
   Engine e2(argv[2], fds[6], fds[5], fds[4], fds[7]);
-  e1.sendTo("UCI");
-  e2.sendTo("UCI");
+  e1.sendTo("uci\n");
+  e2.sendTo("uci\n");
   while(true) {
     std::vector<std::string> cmds = e1.recvFrom();
     for(std::string& cmd : cmds)

@@ -1,0 +1,10 @@
+#!/bin/bash
+cmd="g++ client.cpp -o squengine"
+echo $cmd
+eval $cmd
+cmd="g++ server.cpp -o server"
+echo $cmd
+eval $cmd
+cmd="./server squengine squengine"
+echo $cmd
+eval $cmd

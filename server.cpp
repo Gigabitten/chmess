@@ -16,15 +16,20 @@ private:
   const std::string ISREADY = "isready";
   const std::string READYOK = "readyok";
   const std::string UCINEWGAME = "ucinewgame";
+  const std::string POSITION = "position";
+  const std::string STARTPOS = "startpos";
+  const std::string GO = "go";
+  const std::string BESTMOVE = "bestmove";
 
   int fromFD;
   int toFD;
   std::string lastMsg;
   std::string verifyOutput(std::string expected, std::string got, std::string next);
+  std::string fuzzyVerify(std::string expectedPrefix, std::string got, std::string next);
+  std::string getNextMessage(std::string engineOutput);
 public:
   std::string moves;
   Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD);
-  std::string getNextMessage(std::string engineOutput);
   void sendTo(std::string str);
   std::vector<std::string> recvFrom();
   void process(std::string cmd);
@@ -35,7 +40,24 @@ std::string Engine::verifyOutput(std::string expected, std::string got, std::str
     return next;
   }
   else {
-    std::cerr << "Error! Engine expected " << expected << ", got " << got << " instead!\n";
+    std::cerr << "Error! We expected " << expected << ", got " << got << " instead!\n";
+    return "err";
+  }
+}
+
+std::string Engine::fuzzyVerify(std::string expectedPrefix, std::string got, std::string next) {
+  int prefixLength = expectedPrefix.length();
+  // probably unecessary check
+  if (expectedPrefix.empty() || prefixLength <= 0) {
+    std::cerr << "Error! Empty prefix commands not accepted\n";
+    return "err";
+  }
+  std::string gotPrefix = got.substr(0, prefixLength - 1);
+  if (expectedPrefix == gotPrefix) {
+    return next;
+  }
+  else {
+    std::cerr << "Error! We expected a string starting with " << expectedPrefix << " got " << got << " instead!\n";
     return "err";
   }
 }
@@ -78,7 +100,7 @@ std::string Engine::getNextMessage(std::string engineOutput) {
     return "";
   }
   // i think we can ignore any info string??
-  if (engineOutput.length() >= 4 && engineOutput.substr(0, 4) == "info") {
+  if (engineOutput.length() >= 4 && (engineOutput.substr(0, 4) == "info" || engineOutput.substr(0, 1) == "id")) {
     return "";
   }
   if (lastMsg.empty()) {
@@ -90,16 +112,78 @@ std::string Engine::getNextMessage(std::string engineOutput) {
       return verifyOutput(UCIOK, engineOutput, ISREADY);
     }
     else if (lastMsg == ISREADY) {
-      return verifyOutput(READYOK, engineOutput, NULL);
+      return verifyOutput(READYOK, engineOutput, UCINEWGAME);
+    }
+    else if (lastMsg == UCINEWGAME) {
+      return verifyOutput(READYOK, engineOutput, POSITION);
+    }
+    else if (lastMsg.substr(0, 1) == GO) {
+      return fuzzyVerify(BESTMOVE, engineOutput, GO);
     }
     else return "err";
   }
 }
 
-void Engine::process(std::string cmd) {
-  if(cmd == "OHNO") {
-    std::cerr << "Engine failed to launch! Exiting\n";
+/**
+ * when we get something from the engine, do the next thing
+ * NOTES:
+  needs to handle <position startpos> vs <position e2e4 d7d5>
+  if sending ucinew game
+  also send isready and wait for readyok
+  also, i don't think the engine outputs anything after the position command
+  probably send another readyok? 
+ */
+void Engine::process(std::string engineOutput) {
+  // first, if the engine has returned best move, update moves
+  int bestMoveLength = BESTMOVE.length();
+  if (engineOutput.length() >= bestMoveLength && engineOutput.substr(0, bestMoveLength - 1) == BESTMOVE) {
+    // command will be of the form <bestmove e2e4>.
+    // make sure command is of appropriate length: should be 5 longer than bestmove
+    if (engineOutput.length() != bestMoveLength + 5) {
+      std::cerr << "Malformed bestmove response [" << engineOutput << "] will be skipped\n";
+    }
+    else {
+      std::string move = engineOutput.substr(bestMoveLength, engineOutput.length() - 1);
+      if (this->moves == "") this->moves = move;
+      else this->moves += (" " + move);
+    }
+  }
+  if(engineOutput == "OHNO") {
+    std::cerr << "The engine has died in a fiery explosion! Abort, abort!\n";
     exit(-1);
+  }
+  std::string next = getNextMessage(engineOutput);
+  if (next == "err") {
+    return;
+  }
+  if (next == "") {
+    std::cerr << "getNextMessage() returned empty String???\n";
+    return;
+  }
+  if (next == ISREADY) {
+    // nothing fancy to do here
+    sendTo(ISREADY);
+  }
+  else if (next == UCINEWGAME) {
+    // need to send a UCINEWGAME command
+    // and also wait for the engine to be ready again
+    sendTo(UCINEWGAME);
+    sendTo(ISREADY);
+  }
+  else if (next == POSITION) {
+    std::string msg = POSITION + " " + STARTPOS;
+    if (this->moves != "") {
+      msg += " ";
+      msg += moves;
+    }
+    sendTo(msg);
+  }
+  else if (next == GO) {
+    // hmmmmmmmmmm
+    // TODO
+    // moret hought is needed here
+    // for now just send go ig?
+    sendTo(GO);
   }
 }
 

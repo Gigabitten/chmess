@@ -7,23 +7,45 @@
 
 class Engine {
 private:
+  const std::string INFO = "info";
+  const std::string UCI = "uci";
+  const std::string UCIOK = "uciok";
+  const std::string ISREADY = "isready";
+  const std::string READYOK = "readyok";
+  const std::string UCINEWGAME = "ucinewgame";
+
   int fromFD;
   int toFD;
   std::string lastMsg;
+  std::string verifyOutput(std::string expected, std::string got, std::string next);
 public:
   std::string moves;
   Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD);
+  void send(std::string str);
+  std::string getNextMessage(std::string engineOutput);
+};
+
+std::string Engine::verifyOutput(std::string expected, std::string got, std::string next) {
+  if (expected == got) {
+    return next;
+  }
+  else {
+    std::cerr << "Error! Engine expected " << expected << ", got " << got << " instead!\n";
+    return "err";
+  }
+}
+
+Engine::Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD) : fromFD(_fromFD), toFD(_toFD) {
   void sendTo(std::string str);
   std::vector<std::string> recvFrom();
   void process(std::string cmd);
-};
-
-Engine::Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD) : fromFD(_fromFD), toFD(_toFD) {
   pid_t child = fork();
   if(child == -1) {
     std::cerr << "fork() failed!?\n";
     exit(-1);
   } else if(child == 0) { // in child
+    lastMsg = "";
+    moves = "";
     // dup takes the first closed file descriptor, which will be STD[IN/OUT]_FILENO when they were just closed
     close(STDIN_FILENO);
     dup(inFD);
@@ -40,6 +62,28 @@ void Engine::sendTo(std::string str) {
   lastMsg = str;
   write(toFD, str.c_str(), str.size() + 1);
 };
+
+std::string Engine::getNextMessage(std::string engineOutput) {
+  if (engineOutput.empty()) {
+    return "";
+  }
+  // i think we can ignore any info string??
+  if (engineOutput.length() >= 4 && engineOutput.substr(0, 4) == "info") {
+    return "";
+  }
+  if (lastMsg.empty()) {
+    // default to sending uci
+    return UCI;
+  }
+  else {
+    if (lastMsg == UCI) {
+      return verifyOutput(UCIOK, engineOutput, ISREADY);
+    }
+    else if (lastMsg == ISREADY) {
+      return verifyOutput(READYOK, engineOutput, NULL);
+    }
+  }
+}
 
 void Engine::process(std::string cmd) {
 }

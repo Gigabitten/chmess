@@ -1,0 +1,7 @@
+to be clear, this is a list of todos for us as a team that summer will maintain as she has thoughts
+
+how do we handle stop/quit commands?
+like obv the actual engine executables need to know some shit
+but how does the server know to send the command?
+
+also, the go command has many commands. what are we going with those?

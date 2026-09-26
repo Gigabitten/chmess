@@ -135,7 +135,7 @@ std::string Engine::getNextMessage(std::string engineOutput) {
  */
 void Engine::process(std::string engineOutput) {
   // first, if the engine has returned best move, update moves
-  int bestMoveLength = BESTMOVE.length();
+  size_t bestMoveLength = BESTMOVE.length();
   if (engineOutput.length() >= bestMoveLength && engineOutput.substr(0, bestMoveLength - 1) == BESTMOVE) {
     // command will be of the form <bestmove e2e4>.
     // make sure command is of appropriate length: should be 5 longer than bestmove

@@ -1,10 +1,34 @@
 #!/bin/bash
-cmd="g++ client.cpp -o squengine"
-echo $cmd
-eval $cmd
-cmd="g++ server.cpp -o server"
-echo $cmd
-eval $cmd
-cmd="./server squengine squengine"
-echo $cmd
-eval $cmd
+
+compiler="g++"
+link=""
+include=""
+warnings="-Wall -Wextra -Werror -Wno-unused-parameter"
+miscflags="-fdiagnostics-color=always"
+flags="${include} ${warnings} ${miscflags}"
+output=""
+run="echo -n" # silly way of writing nop. if we don't give it SOMETHING to run, eval yells at us lol
+
+# unquoted expansion since I didn't want to bother. if you blow this up then call me I want to know what you did I bet it's funny
+compileOne () {
+  cpp=$1
+  flags=$2
+  out=$3
+  cmd="${compiler} ${cpp} ${flags} -o ${out}"
+  echo $cmd
+  eval $cmd
+  success=$?
+  if ! [ $success -eq 0 ]; then run="echo -n"; fi
+}
+
+if [ "$0" = "$BASH_SOURCE" ]; then # not sourced
+  clear
+  debugflags=" -O2 -DNDEBUG"
+  if [[ $1 =~ .*debug.* ]]; then debugflags=" -g -fno-omit-frame-pointer"; fi
+  if [[ $1 =~ .*run.* ]]; then run="./server squengine squengine"; fi
+  ctags --recurse=yes --exclude=.git --exclude=build --exclude=scrapyard --exclude=compile_commands.json --exclude=img --exclude=lib --exclude=save.slm --exclude=slrs --exclude=test/build --exclude=test/runtests
+  fullflags="${flags} ${debugflags}"
+  compileOne squengine.cpp "$fullflags" squengine
+  compileOne server.cpp "$fullflags" server
+  eval $run
+fi

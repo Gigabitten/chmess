@@ -3,6 +3,7 @@
 void check(std::string expected, std::string actual) {
   if(actual != expected) {
     std::cerr << "expected " << expected << " but got " << actual << " - exiting\n";
+    std::cout << "OHNO\n";
     exit(-1);
   }
 }

@@ -4,18 +4,18 @@
 !_TAG_PROGRAM_NAME	Exuberant Ctags	//
 !_TAG_PROGRAM_URL	http://ctags.sourceforge.net	/official site/
 !_TAG_PROGRAM_VERSION	5.9~svn20110310	//
-BESTMOVE	server.cpp	/^  const std::string BESTMOVE = "bestmove";$/;"	m	class:Engine	file:
+BESTMOVE	server.cpp	/^  const static inline std::string BESTMOVE = "bestmove";$/;"	m	class:Engine	file:
 Engine	server.cpp	/^Engine::Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD) : fromFD(_fromFD), toFD(_toFD) {$/;"	f	class:Engine
 Engine	server.cpp	/^class Engine {$/;"	c	file:
-GO	server.cpp	/^  const std::string GO = "go";$/;"	m	class:Engine	file:
-INFO	server.cpp	/^  const std::string INFO = "info";$/;"	m	class:Engine	file:
-ISREADY	server.cpp	/^  const std::string ISREADY = "isready";$/;"	m	class:Engine	file:
-POSITION	server.cpp	/^  const std::string POSITION = "position";$/;"	m	class:Engine	file:
-READYOK	server.cpp	/^  const std::string READYOK = "readyok";$/;"	m	class:Engine	file:
-STARTPOS	server.cpp	/^  const std::string STARTPOS = "startpos";$/;"	m	class:Engine	file:
-UCI	server.cpp	/^  const std::string UCI = "uci";$/;"	m	class:Engine	file:
-UCINEWGAME	server.cpp	/^  const std::string UCINEWGAME = "ucinewgame";$/;"	m	class:Engine	file:
-UCIOK	server.cpp	/^  const std::string UCIOK = "uciok";$/;"	m	class:Engine	file:
+GO	server.cpp	/^  const static inline std::string GO = "go";$/;"	m	class:Engine	file:
+INFO	server.cpp	/^  const static inline std::string INFO = "info";$/;"	m	class:Engine	file:
+ISREADY	server.cpp	/^  const static inline std::string ISREADY = "isready";$/;"	m	class:Engine	file:
+POSITION	server.cpp	/^  const static inline std::string POSITION = "position";$/;"	m	class:Engine	file:
+READYOK	server.cpp	/^  const static inline std::string READYOK = "readyok";$/;"	m	class:Engine	file:
+STARTPOS	server.cpp	/^  const static inline std::string STARTPOS = "startpos";$/;"	m	class:Engine	file:
+UCI	server.cpp	/^  const static inline std::string UCI = "uci";$/;"	m	class:Engine	file:
+UCINEWGAME	server.cpp	/^  const static inline std::string UCINEWGAME = "ucinewgame";$/;"	m	class:Engine	file:
+UCIOK	server.cpp	/^  const static inline std::string UCIOK = "uciok";$/;"	m	class:Engine	file:
 check	squengine.cpp	/^void check(std::string expected, std::string actual) {$/;"	f
 fromFD	server.cpp	/^  int fromFD;$/;"	m	class:Engine	file:
 fuzzyVerify	server.cpp	/^std::string Engine::fuzzyVerify(std::string expectedPrefix, std::string got, std::string next) {$/;"	f	class:Engine
@@ -24,8 +24,10 @@ lastMsg	server.cpp	/^  std::string lastMsg;$/;"	m	class:Engine	file:
 main	server.cpp	/^int main(int argc, char** argv) {$/;"	f
 main	squengine.cpp	/^int main() {$/;"	f
 moves	server.cpp	/^  std::string moves;$/;"	m	class:Engine	file:
+name	server.cpp	/^  std::string name;$/;"	m	class:Engine	file:
 process	server.cpp	/^void Engine::process(std::string engineOutput) {$/;"	f	class:Engine
 recvFrom	server.cpp	/^std::vector<std::string> Engine::recvFrom() {$/;"	f	class:Engine
 sendTo	server.cpp	/^void Engine::sendTo(std::string str) {$/;"	f	class:Engine
 toFD	server.cpp	/^  int toFD;$/;"	m	class:Engine	file:
 verifyOutput	server.cpp	/^std::string Engine::verifyOutput(std::string expected, std::string got, std::string next) {$/;"	f	class:Engine
+waitCheckRespond	squengine.cpp	/^void waitCheckRespond(std::string expected, std::string response) {$/;"	f

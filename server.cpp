@@ -7,27 +7,33 @@
 #include <fcntl.h>
 #include <linux/limits.h>
 #include <sys/mman.h>
+#include <errno.h>
 
 class Engine {
 private:
-  const std::string INFO = "info";
-  const std::string UCI = "uci";
-  const std::string UCIOK = "uciok";
-  const std::string ISREADY = "isready";
-  const std::string READYOK = "readyok";
-  const std::string UCINEWGAME = "ucinewgame";
-  const std::string POSITION = "position";
-  const std::string STARTPOS = "startpos";
-  const std::string GO = "go";
-  const std::string BESTMOVE = "bestmove";
-
   int fromFD;
   int toFD;
+  std::string name;
   std::string lastMsg;
   std::string verifyOutput(std::string expected, std::string got, std::string next);
   std::string fuzzyVerify(std::string expectedPrefix, std::string got, std::string next);
   std::string getNextMessage(std::string engineOutput);
 public:
+  // why do all these have to be declared static inline?
+  // don't ask me. they just *do* if we want them to be visible outside the class.
+  // which we do.
+  // TODO ask summer about the possibility of making an enum and a switch statement instead
+  const static inline std::string INFO = "info";
+  const static inline std::string UCI = "uci";
+  const static inline std::string UCIOK = "uciok";
+  const static inline std::string ISREADY = "isready";
+  const static inline std::string READYOK = "readyok";
+  const static inline std::string UCINEWGAME = "ucinewgame";
+  const static inline std::string POSITION = "position";
+  const static inline std::string STARTPOS = "startpos";
+  const static inline std::string GO = "go";
+  const static inline std::string BESTMOVE = "bestmove";
+
   std::string moves;
   Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD);
   void sendTo(std::string str);
@@ -63,6 +69,7 @@ std::string Engine::fuzzyVerify(std::string expectedPrefix, std::string got, std
 }
 
 Engine::Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD) : fromFD(_fromFD), toFD(_toFD) {
+  name = engName;
   pid_t child = fork();
   if(child == -1) {
     std::cerr << "fork() failed!?\n";
@@ -70,7 +77,7 @@ Engine::Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD)
   } else if(child == 0) { // in child
     lastMsg = "";
     moves = "";
-    // dup takes the first closed file descriptor, which will be STD[IN/OUT]_FILENO when they were just closed
+    // dup uses the first closed file descriptor, which will be STD[IN/OUT]_FILENO when they were just closed
     close(STDIN_FILENO);
     dup(inFD);
     close(STDOUT_FILENO);
@@ -90,14 +97,21 @@ Engine::Engine(std::string engName, int _fromFD, int _toFD, int inFD, int outFD)
 }
 
 void Engine::sendTo(std::string str) {
-  std::cout << "server sending: " << str;
   lastMsg = str;
-  write(toFD, str.c_str(), str.size() + 1);
+  str += '\n';
+  std::cout << "sending to " << name << ": " << str;
+  int n = 0;
+  do {
+    n = write(toFD, str.c_str(), str.size());
+  } while(n == -1 && errno == EAGAIN);
 };
 
 std::string Engine::getNextMessage(std::string engineOutput) {
   if (engineOutput.empty()) {
     return "";
+  }
+  if (engineOutput.length() >= 5 && engineOutput.substr(0, 5) == "debug") {
+    std::cout << name << ": " << engineOutput << "\n";
   }
   // i think we can ignore any info string??
   if (engineOutput.length() >= 4 && (engineOutput.substr(0, 4) == "info" || engineOutput.substr(0, 1) == "id")) {
@@ -194,28 +208,27 @@ std::vector<std::string> Engine::recvFrom() {
   if(n == -1) // got nothing
     return ret;
   if(buf[1023] != EOF)
-    buf[1023] = '\0'; // just to be sure
-  char* end = buf;
-  for(char* start = end; *start != EOF && (start - buf < 1023); start = end) {
-    for(end = start + 1; *end != '\0' && *end != EOF && *end != '\n'; end++); // find eof or end or newline or CR
-    if(buf[0] == EOF)
+    buf[1023] = '\0'; // just to be sure it's terminated lol
+  // looking for eof, \n, \r, and \0
+  char* start = buf;
+  do {
+    char* nl = strchr(start, '\n');
+    if(nl == NULL)
+      break;
+    if(nl == start) {
+      start += 1;
       continue;
-    ret.push_back(std::string(start, end));
-  }
+    }
+    ret.push_back(std::string(start, nl));
+    start = nl + 1;
+  } while(*start != EOF && *start != '\0');
+
   for(const std::string& str : ret)
-    std::cout << "server got: " << str << "\n";
+    std::cout << "from " << name << ": " << str << "\n";
   return ret;
 }
 
 int main(int argc, char** argv) {
-  pthread_mutexattr_t attr;
-  pthread_mutex_t *mut;
-  pthread_mutexattr_init(&attr); 
-  pthread_mutexattr_setpshared(&attr, PTHREAD_PROCESS_SHARED);
-  mut = (pthread_mutex_t*)mmap(NULL, sizeof(*mut), PROT_READ | PROT_WRITE, MAP_SHARED | MAP_ANONYMOUS, -1, 0);
-  pthread_mutex_init(mut, &attr);
-  pthread_mutexattr_destroy(&attr);
-
   struct stat buf;
   if(argc != 3 || stat(argv[1], &buf) != 0 || stat(argv[2], &buf) != 0) {
     std::cerr << "usage: ./server engine1 engine2\n";
@@ -223,11 +236,14 @@ int main(int argc, char** argv) {
   }
   int fds[8]; // eng1 input in, eng1 input out, eng1 output in, eng2 output out, and so on for eng2
   for(int i = 0; i < 4; i++)
-    pipe2(fds + i * 2, O_NONBLOCK);
+    if(i % 2 == 0)
+      pipe(fds + i * 2);
+    else
+      pipe2(fds + i * 2, O_NONBLOCK);
   Engine e1(argv[1], fds[2], fds[1], fds[0], fds[3]);
   Engine e2(argv[2], fds[6], fds[5], fds[4], fds[7]);
-  e1.sendTo("uci\n");
-  e2.sendTo("uci\n");
+  e1.sendTo(Engine::UCI);
+  e2.sendTo(Engine::UCI);
   while(true) {
     std::vector<std::string> cmds = e1.recvFrom();
     for(std::string& cmd : cmds)
